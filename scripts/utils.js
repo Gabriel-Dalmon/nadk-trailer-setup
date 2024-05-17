@@ -42,3 +42,8 @@ export function getGamepadsCount() {
     );
     return gamepadCount;
 }
+
+//------------------------------------------------------------------------------
+export function getSensitivity() {
+    return document.getElementById("sensitivity-slider").value;
+}

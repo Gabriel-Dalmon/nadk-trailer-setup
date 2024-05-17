@@ -4,6 +4,8 @@ import {
     getGamepadsCount
 } from "./utils.js";
 
+import CharacterController from "./character-controller.js";
+
 //------------------------------------------------------------------------------
 let device = "mouse";
 const PHYSICAL_ACTION_KEYS = {
@@ -71,10 +73,7 @@ export function adjustDeviceSensitivity(characterController) {
     );
 }
 
-//------------------------------------------------------------------------------
-function getSensitivity() {
-    return document.getElementById("sensitivity-slider").value;
-}
+
 
 //------------------------------------------------------------------------------
 function getActionKey(physicalActionKey) {
@@ -94,20 +93,20 @@ async function getLayoutBasedActionKey(physicalActionKey) {
 }
 
 //------------------------------------------------------------------------------
-export function initDeviceDetection(characterController) {
-    detectMouse(characterController);
-    detectGamepad(characterController);
+export function initDeviceDetection() {
+    detectMouse();
+    detectGamepad();
 }
 
 //------------------------------------------------------------------------------
-function detectGamepad(characterController) {
+function detectGamepad() {
     window.addEventListener(
         'gamepadconnected',
         () => {
             if(getGamepadsCount() === 1){
                 // When the first gamepad is connected, it means the last 
                 // detectMouse() didn't activate detectGamepadActions(). 
-                detectGamepadActions(characterController);
+                detectGamepadActions();
             }
         }
     );
@@ -124,7 +123,7 @@ function detectGamepad(characterController) {
 }
 
 //------------------------------------------------------------------------------
-async function detectGamepadActions(characterController) {
+async function detectGamepadActions() {
     let gamepads;
     while(device !== 'gamepad')
     {
@@ -135,7 +134,7 @@ async function detectGamepadActions(characterController) {
                 if(Math.abs(axis) > GAMEPAD_DETECTION_DEADZONE)
                 {
                     device = 'gamepad';
-                    adjustDeviceSensitivity(characterController);
+                    CharacterController.adjustDeviceSensitivity();
                     return;
                 }
             }
@@ -145,7 +144,7 @@ async function detectGamepadActions(characterController) {
 }
 
 //------------------------------------------------------------------------------
-function detectMouse(characterController) {
+function detectMouse() {
     const canvas = document.getElementById("display-canvas");
     canvas.addEventListener(
         'mousedown', 
@@ -153,9 +152,9 @@ function detectMouse(characterController) {
             lockPointer();
             if( device === 'mouse') return;
             device = 'mouse';
-            adjustDeviceSensitivity(characterController);
+            CharacterController.adjustDeviceSensitivity();
             if(getGamepadsCount() > 0){
-                detectGamepadActions(characterController);
+                detectGamepadActions();
             }
         }
     );
@@ -168,8 +167,8 @@ export function openSettingsModal() {
 }
 
 //------------------------------------------------------------------------------
-export function closeSettingsModal(characterController) {
+export function closeSettingsModal() {
     const settingsContainer = document.getElementById("settings-modal").parentNode;
     settingsContainer.classList.remove('active');
-    adjustDeviceSensitivity(characterController);
+    CharacterController.adjustDeviceSensitivity();
 }

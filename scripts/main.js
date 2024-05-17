@@ -1,275 +1,154 @@
 //------------------------------------------------------------------------------
-import {
-  publicToken,
-  mainSceneUUID,
-  characterControllerSceneUUID,
-  spawnPosition
-} from "../config.js";
+import config from "../config.js";
 
-import { lockPointer, unlockPointer } from "./utils.js";
+import Camera from "./camera.js";
+
+import CharacterController from "./character-controller.js";
+
+import { lockPointer } from "./utils.js";
 
 import { 
   initDeviceDetection, 
-  initControlKeySettings,
-  adjustDeviceSensitivity, 
+  initControlKeySettings, 
   openSettingsModal,
   closeSettingsModal
 } from "./settings.js";
 
 
 //------------------------------------------------------------------------------
-window.addEventListener("load", initApp);
+class App {
 
-//------------------------------------------------------------------------------
-async function initApp() {
-    const canvas = document.getElementById("display-canvas");
+    _preloadAppPromise = null;
 
-    const sessionParameters = {
-        userToken: publicToken,
-        sceneUUID: mainSceneUUID,
-        canvas: canvas,
-        createDefaultCamera: false,
-        showLoadingOverlay: false,
+    //--------------------------------------------------------------------------
+    // Initializes the main menu and starts joining the session.
+    initApp() {    
+        // Directly load the app to reduce loading times when the user clicks the
+        // start button.
+        this._preloadAppPromise = this.preloadApp();
 
-        //startSimulation: "on-assets-loaded",
-    };
-    await SDK3DVerse.joinOrStartSession(sessionParameters);
-
-    // To spawn a character controller we need to instantiate the 
-    // "characterControllerSceneUUID" subscene into our main scene.
-    const characterController = await initFirstPersonController(
-        characterControllerSceneUUID
-    );
-
-    SDK3DVerse.actionMap.values["JUMP"] = [["KEY_32"]];
-    SDK3DVerse.actionMap.values["SPRINT"] = [["KEY_16"]];
-    setFPSCameraController(canvas); // calls actionMap.propagate() internally
-
-    initDeviceDetection(characterController);
-    adjustDeviceSensitivity(characterController);
-
-    initPointerLockEvents();
-    initSettingsModalEvents(characterController);
-    initControlKeySettings();
-    handleClientDisconnection();
+        // When the user clicks the start button, we hide the main menu and wait 
+        // for the session to be joined before calling startGame() to execute the 
+        // game logic.
+        document.getElementById("start-button").addEventListener('click', () => {
+            document.getElementById("main-menu").classList.remove('active');
+            this._preloadAppPromise.then(async () => {
+                await this.startGame();
+            });
+        });
         
-    initInteractableEntityDisplay(characterController);
-    initLock(characterController);
+        // Initialize all browser events that are not session dependent.
 
-    let torch;
-    let newIntensity = 10;
-    const characterControllerChildren = await characterController.getChildren()
-    console.log(characterControllerChildren);
-    for(let characterControllerChild of characterControllerChildren) {
-        if(characterControllerChild.isAttached("camera")) {
-            torch = (await characterControllerChild.getChildren())[0];
-        }
+        // TODO : We can take back the code from an old version of the fpcc 
+        // template to dynamically load the keys from the actionMap directly.
+        initControlKeySettings();
+
+
     }
+    
+    //--------------------------------------------------------------------------
+    async preloadApp() {
+        const canvas = document.getElementById("display-canvas");
+        const sessionParameters = {
+            userToken: config.accessIDs.publicToken,
+            sceneUUID: config.accessIDs.mainSceneUUID,
+            canvas: canvas,
+            createDefaultCamera: true,
+            showLoadingOverlay: false,
+            connectToEditor: true,
+            isTransient: true,
+            onFindingSession: () => ChangeLoadingInfo("Looking for sessions..."),
+            onStartingStreamer: () => ChangeLoadingInfo("Starting streamer..."),
+            onLoadingAssets: () => ChangeLoadingInfo("Loading assets..."),
+        };
+        const isCreator = await SDK3DVerse.joinOrStartSession(sessionParameters);
 
-    document.addEventListener('keydown', async (event) => {
-        if(event.code === 'KeyF') {
-            playFinalAnimation();
+        Camera.init();
 
-        } else if(event.code === 'KeyE') {
-            torch.setComponent("point_light", {intensity: newIntensity});
-            newIntensity = newIntensity === 0 ? 10 : 0;
-        }
-    });
-
-}
-
-//------------------------------------------------------------------------------
-async function initFirstPersonController(charCtlSceneUUID) {
-    // To spawn an entity we need to create an EntityTemplate and specify the
-    // components we want to attach to it. In this case we only want a scene_ref
-    // that points to the character controller scene.
-    const playerTemplate = new SDK3DVerse.EntityTemplate();
-    playerTemplate.attachComponent("scene_ref", { value: charCtlSceneUUID });
-    playerTemplate.attachComponent("local_transform", { position: spawnPosition });
-    // Passing null as parent entity will instantiate our new entity at the root
-    // of the main scene.
-    const parentEntity = null;
-    // Setting this option to true will ensure that our entity will be destroyed
-    // when the client is disconnected from the session, making sure we don't
-    // leave our 'dead' player body behind.
-    const deleteOnClientDisconnection = true;
-    // We don't want the player to be saved forever in the scene, so we
-    // instantiate a transient entity.
-    // Note that an entity template can be instantiated multiple times.
-    // Each instantiation results in a new entity.
-    const playerSceneEntity = await playerTemplate.instantiateTransientEntity(
-      "Player",
-      parentEntity,
-      deleteOnClientDisconnection
-    );
-
-    // The character controller scene is setup as having a single entity at its
-    // root which is the first person controller itself.
-    const firstPersonController = (await playerSceneEntity.getChildren())[0];
-    // Look for the first person camera in the children of the controller.
-    const children = await firstPersonController.getChildren();
-    const firstPersonCamera = children.find((child) =>
-      child.isAttached("camera")
-    );
+        initDeviceDetection();
+        initPointerLockEvents();
+        initSettingsModalEvents();
         
-    SDK3DVerse.engineAPI.fireEvent("a25ea293-d682-45d3-962f-bd63e870a7d3", "call_constructor", [firstPersonController]);
+        // Users are considered inactive after 5 minutes of inactivity and are
+        // kicked after 30 seconds of inactivity. Setting an inactivity callback 
+        // with a 30 seconds cooldown allows us to open a popup when the user gets
+        // disconnected.
+        SDK3DVerse.setInactivityCallback(showInactivityPopup);
 
-    // We need to assign the current client to the first person controller
-    // script which is attached to the firstPersonController entity.
-    // This allows the script to know which client inputs it should read.
-    SDK3DVerse.engineAPI.assignClientToScripts(firstPersonController);
+        // The following does the same but in case the disconnection is 
+        // requested by the server.
+        SDK3DVerse.notifier.on("onConnectionClosed", this.onConnectionClosed);
 
-    // Finally set the first person camera as the main camera.
-    await SDK3DVerse.engineAPI.cameraAPI.setMainCamera(firstPersonCamera);
-    return firstPersonController;
-}
-
-const setFPSCameraController = async (canvas) => {
-    // Remove the required click for the LOOK_LEFT, LOOK_RIGHT, LOOK_UP, and 
-    // LOOK_DOWN actions.
-    SDK3DVerse.actionMap.values["LOOK_LEFT"][0] = ["MOUSE_AXIS_X_POS"];
-    SDK3DVerse.actionMap.values["LOOK_RIGHT"][0] = ["MOUSE_AXIS_X_NEG"];
-    SDK3DVerse.actionMap.values["LOOK_DOWN"][0] = ["MOUSE_AXIS_Y_NEG"];
-    SDK3DVerse.actionMap.values["LOOK_UP"][0] = ["MOUSE_AXIS_Y_POS"];
-    SDK3DVerse.actionMap.propagate();
-
-    // Lock the mouse pointer
-    canvas.requestPointerLock = (
-        canvas.requestPointerLock 
-        || canvas.mozRequestPointerLock 
-        || canvas.webkitPointerLockElement
-    );
-    canvas.requestPointerLock({unadjustedMovement: true});
-    canvas.focus();
-};
-
-const initInteractableEntityDisplay = (characterController) => {
-
-    const canvas = document.getElementById("display-canvas");
-    setInterval(async () => {
-        const objectTargeted = await SDK3DVerse.engineAPI.castScreenSpaceRay(canvas.width/2, canvas.height/2, false, false, false);
-        if(objectTargeted.entity && objectTargeted.entity.isAttached("tags")) {
-            const tags = objectTargeted.entity.getComponent("tags").value;
-            if(tags.includes("interactable")){
-                objectTargeted.entity.select();
-                window.selectedInteractable = objectTargeted.entity
-                return;
+        document.addEventListener('keydown', async (event) => {
+            if(event.code === 'KeyF') {
+                playFinalAnimation();
             }
-        }
-        if(window.selectedInteractable) {
-            SDK3DVerse.engineAPI.updateSelectedEntities([window.selectedInteractable], true, 'unselect');
-            window.selectedInteractable = null;
-        }
-    }, 400);
-
-    canvas.addEventListener('mousedown', (event) => {
-        interact(event, canvas, characterController);
-    });
-};
-
-const initLock = (characterController) => {
-    document.getElementById("lock-modal").addEventListener('click', (event) => {
-        event.stopPropagation();
-    });
-
-    document.getElementById("lock-input-1").addEventListener("input", () => checkLockCode(characterController));
-    document.getElementById("lock-input-2").addEventListener("input", () => checkLockCode(characterController));
-    document.getElementById("lock-input-3").addEventListener("input", () => checkLockCode(characterController));
-    document.getElementById("lock-input-4").addEventListener("input", () => checkLockCode(characterController));
-
-    document.getElementById("lock-modal-container").addEventListener('click', () => {
-        document.getElementById("lock-modal").parentNode.classList.remove('active');
-        lockPointer();
-        SDK3DVerse.engineAPI.assignClientToScripts(characterController);
-    });
-
-    const incrementArrows = document.getElementsByClassName('increment-arrow');
-    for (let i = 0; i < incrementArrows.length; i++) {
-        incrementArrows[i].addEventListener('click', (event) => {
-            const input = document.getElementById('lock-input-'+(i+1).toString());
-            input.value = (parseInt(input.value) + 1) % 10;
-            input.dispatchEvent(new Event('input'));
         });
     }
 
-    const decrementArrows = document.getElementsByClassName('decrement-arrow');
-    for (let i = 0; i < decrementArrows.length; i++) {
-        decrementArrows[i].addEventListener('click', (event) => {
-            const input = document.getElementById('lock-input-'+(i+1).toString());
-            input.value = (parseInt(input.value) - 1) % 10;
-            input.dispatchEvent(new Event('input'));
-        });
-    }
-};
-
-const interact = async (event, canvas, characterController) => {
-    // Test if the button was indeed left click
-    if(event.button === 0){
-        // Screen Space Ray on the middle of the screen
-        // This stores an [object Promise] in the JS variable
-        let objectClicked = await SDK3DVerse.engineAPI.castScreenSpaceRay(canvas.width/2, canvas.height/2, false, false, false);
-        if(objectClicked.entity != null)
-        {
-            const scriptMapComponent = objectClicked.entity.getComponent('script_map'); //should use SDK3DVerseUtils to clone the component content instead
-            if(objectClicked.entity.isAttached("tags")){//scriptMapComponent && "a5ef8dfe-8b72-497c-97b7-2e65a211d6fe" in scriptMapComponent.elements) {
-                //let objectParent = objectClicked.entity.getParent();
-                //const initialPosition = objectParent.getGlobalTransform();
-                //const playerTransform = SDK3DVerse.engineAPI.cameraAPI.getActiveViewports()[0].getTransform();
-                let entity = (await SDK3DVerse.engineAPI.findEntitiesByEUID("9fa45d12-24cd-4b4c-b2f1-c875336efc4a"))[0];
-                SDK3DVerse.engineAPI.assignClientToScripts(entity);
-                SDK3DVerse.engineAPI.detachClientFromScripts(characterController);
-                //unlockPointer();
-                SDK3DVerse.actionMap.values["LOOK_LEFT"][0] = ["MOUSE_BTN_LEFT","MOUSE_AXIS_X_POS"];
-                SDK3DVerse.actionMap.values["LOOK_RIGHT"][0] = ["MOUSE_BTN_LEFT","MOUSE_AXIS_X_NEG"];
-                SDK3DVerse.actionMap.values["LOOK_DOWN"][0] = ["MOUSE_BTN_LEFT","MOUSE_AXIS_Y_NEG"];
-                SDK3DVerse.actionMap.values["LOOK_UP"][0] = ["MOUSE_BTN_LEFT","MOUSE_AXIS_Y_POS"];
-                SDK3DVerse.actionMap.propagate();
-                SDK3DVerse.engineAPI.fireEvent("191b5072-b834-40f0-a616-88a6fc2bd7a3", "enter_interaction", [entity]);
-                canvas.addEventListener('mouseup', unlockPointer);
-            }
-            else if (objectClicked.entity.getComponent("debug_name").value === "Code") {
-                showLockModal(characterController);
-            }
+    //--------------------------------------------------------------------------
+    // TODO : Refactor into a cleaner management of both scenarios when the 
+    // simulation has started and when it hasn't.
+    async startGame() {
+        if(this._preloadAppPromise === null) {
+            closeDisconnectedPopup();
+            closeInactivityPopup();
+            await this.preloadApp();
         }
-        else
-        {
-            console.log("Missed");
+        this._preloadAppPromise = null;
+
+        // Small hack to detect if the simulation is already started, there must 
+        // be a better way to do this.
+        const simulationStateEntity = (await SDK3DVerse.engineAPI.findEntitiesByNames("simulationStarted"))[0];
+        if(simulationStateEntity === null) { // if simulation is not started yet
+
+            // We purposedly wait before starting the simulation as it looks 
+            // like there is still some conflict between texture loading and 
+            // simulation starting. Should not be necessary on projects with
+            // less or smaller textures
+            ChangeLoadingInfo("Loading textures...")
+            setTimeout(async () => {
+                // Find entity by name "simulationOn"
+                SDK3DVerse.engineAPI.startSimulation();
+                ChangeLoadingInfo("Instantiating character controller...")
+                const simulationStartedIndicator = new SDK3DVerse.EntityTemplate();
+                await simulationStartedIndicator.instantiateTransientEntity(
+                    "simulationStarted",
+                    null,
+                    false
+                );
+                ChangeLoadingInfo("Initializing character controller...")
+                await CharacterController.init();
+                ChangeLoadingInfo("Entering character controller...")
+                await CharacterController.enter();
+                await CharacterController.adjustDeviceSensitivity();
+                document.getElementById("loading-screen").classList.remove('active');
+            }, 9000);
+        } else {
+            // TODO : Setup a proper cinematic system that fetches the label entities 
+            ChangeLoadingInfo("Loading cinematics...")
+            const startLabel = (await SDK3DVerse.engineAPI.findEntitiesByEUID("ecbf7e22-5de9-4095-a202-17f7dc9d5a49"))[0].getComponent("label");
+            const destinationLabel = (await SDK3DVerse.engineAPI.findEntitiesByEUID("2d48f684-6d41-4baa-adcc-f7219657f1c1"))[0].getComponent("label");
+            const label3 = (await SDK3DVerse.engineAPI.findEntitiesByEUID("d612ce17-cad7-4b4a-a1b1-7a5541d0dc90"))[0].getComponent("label");
+            const label4 = (await SDK3DVerse.engineAPI.findEntitiesByEUID("4ed5219c-a4ed-435c-b829-471219cce924"))[0].getComponent("label");
+            let characterControllerInited = CharacterController.init();
+            // When the cinematic data is retrieved, we hide the loading screen and play the cinematic shots.
+            document.getElementById("loading-screen").classList.remove('active');
+            await Camera.playCinematicShot(startLabel, destinationLabel);
+            await Camera.playCinematicShot(label3, label4);
+            characterControllerInited.then(() => {CharacterController.enter();});
         }
     }
 
-    // If an object was hit, duplicate it in a scaled verison, handleable by players
-    // Camera work
-    // Character work
-};
+    onConnectionClosed() {
+        this._preloadAppPromise = null;
+        showDisconnectedPopup();
+    }
+}
+
 
 //------------------------------------------------------------------------------
-function showLockModal(characterController) {
-    document.getElementById("lock-modal").parentNode.classList.add('active');
-    SDK3DVerse.engineAPI.detachClientFromScripts(characterController);
-    unlockPointer();
-
-}
-
-async function checkLockCode(characterController) {
-    var code = "1234"; // Replace with your correct code
-    var input1 = document.getElementById("lock-input-1").value;
-    var input2 = document.getElementById("lock-input-2").value;
-    var input3 = document.getElementById("lock-input-3").value;
-    var input4 = document.getElementById("lock-input-4").value;
-
-    var enteredCode = input1 + input2 + input3 + input4;
-
-    if (enteredCode === code) {
-        document.getElementById("lock-modal").parentNode.classList.remove('active');
-        lockPointer();
-        SDK3DVerse.engineAPI.assignClientToScripts(characterController);
-        const chestSceneEntity = await SDK3DVerse.engineAPI.findEntitiesByNames('chest');
-        await SDK3DVerse.engineAPI.playAnimationSequence("a16461db-aa16-4e2e-8cb0-fe123a6d8d7c", { playbackSpeed: 1, seekOffset: 0 }, chestSceneEntity[0]);
-    } else {
-        console.log("Code is incorrect!");
-    }
-}
-
+// TODO : Bind with game logic instead of keybinding
 async function playFinalAnimation() {
     const helicopterSceneEntity = await SDK3DVerse.engineAPI.findEntitiesByNames('helicopter');
     const helicopterMovementAnimScene = await SDK3DVerse.engineAPI.findEntitiesByNames('Amphitheatre + Props');
@@ -280,17 +159,9 @@ async function playFinalAnimation() {
 }
 
 //------------------------------------------------------------------------------
-function handleClientDisconnection() {
-    // Users are considered inactive after 5 minutes of inactivity and are
-    // kicked after 30 seconds of inactivity. Setting an inactivity callback 
-    // with a 30 seconds cooldown allows us to open a popup when the user gets
-    // disconnected.
-    SDK3DVerse.setInactivityCallback(showInactivityPopup);
-
-    // The following does the same but in case the disconnection is 
-    // requested by the server.
-    SDK3DVerse.notifier.on("onConnectionClosed", showDisconnectedPopup);
-}
+async function ChangeLoadingInfo(newInfo) {
+    document.getElementById("loading-info").innerHTML = newInfo;
+  }
 
 //------------------------------------------------------------------------------
 function showInactivityPopup() {
@@ -306,8 +177,17 @@ function closeInactivityPopup() {
 
 //------------------------------------------------------------------------------
 function showDisconnectedPopup() {
-    document.getElementById("reload-session").addEventListener('click', () => window.location.reload());
+    // TODO : Make show and close DiconnectedPoput use the same reference to 
+    // add/remove the reloadPage event listener.
+    const reloadPage = window.location.reload.bind(window.location);
+    document.getElementById("reload-session").addEventListener('click', reloadPage);
     document.getElementById("disconnected-modal").parentNode.classList.add('active');
+}
+
+//------------------------------------------------------------------------------
+function closeDisconnectedPopup() {
+    document.getElementById("reload-session").removeEventListener('click', window.location.reload);
+    document.getElementById("disconnected-modal").parentNode.classList.remove('active');
 }
 
 //------------------------------------------------------------------------------
@@ -325,25 +205,33 @@ function initPointerLockEvents() {
 }
 
 //------------------------------------------------------------------------------
-function initSettingsModalEvents(characterController) {
+function initSettingsModalEvents() {
     const closeSettingsButton = document.getElementById("close-settings");
     closeSettingsButton.addEventListener('click', () => {
-        closeSettingsModal(characterController);
+        closeSettingsModal();
         SDK3DVerse.enableInputs();
     });
 
     // If the user leaves the pointerlock, we open the settings popup and
     // disable their influence over the character controller.
-    document.addEventListener('keydown', (event) => {
-        if(event.code === 'Escape') {
-            const settingsContainer = document.getElementById("settings-modal").parentNode;
-            if(settingsContainer.classList.contains('active')) {
-                closeSettingsModal(characterController);
-                SDK3DVerse.enableInputs();
-            } else {
-                SDK3DVerse.disableInputs();
-                openSettingsModal();
-            }
-        }
-    });
+    document.addEventListener('keydown', handleKeyDown);
 }
+
+function handleKeyDown(event) {
+    if(event.code === 'Escape') {
+        const settingsContainer = document.getElementById("settings-modal").parentNode;
+        if(settingsContainer.classList.contains('active')) {
+            closeSettingsModal();
+            SDK3DVerse.enableInputs();
+        } else {
+            SDK3DVerse.disableInputs();
+            openSettingsModal();
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
+const instance = new App();
+export default instance;
+instance.initApp = instance.initApp.bind(instance);
+window.addEventListener("load", instance.initApp);

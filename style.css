@@ -12,6 +12,65 @@
   }
 }
 
+#main-menu {
+  visibility: hidden;
+  z-index:11;
+  position:absolute;
+  display:flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width:100%;
+  height:100%;
+  background-image: url('images/inside.jpg');
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: 0 95%;
+
+  & h1 {
+    font-size: 3.5rem;
+    color: #fff;
+    margin: 20vh 10vw 0 0;  
+    width:100%;
+  }
+
+  & .cta-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 1rem;
+    width: 100%;
+    height: 100%;
+    padding: 35vh 0 0 15vw;
+  }
+}
+
+/* for large screen - not meant for responsiveness, only for specific recording setup */
+@media (min-width: 1624px) {
+  #main-menu {
+    & h1 {
+      font-size: 5rem;
+      margin: 20vh 10vw 0 10vw;
+    }
+    & .cta-container {
+      padding-top: 37.5vh;
+      padding-left: 20vw;
+      & .cta {
+        padding: 1rem 1.7rem;
+  
+        & .cta-title {
+          font-size: 4rem;
+        }
+      }    
+    }
+
+  }
+}
+
+#main-menu.active {
+  visibility: visible;
+}
+
 body {
   width: 100vw;
   height: 100dvh;
@@ -22,7 +81,7 @@ body {
   overflow: hidden;
 }
 
-.cta {
+.cta-3dverse {
   background:none;
   border: 1px solid white;
   border-radius: 20px;
@@ -31,11 +90,55 @@ body {
   cursor: pointer;
 }
 
-.cta:hover {
+.cta-3dverse:hover {
   color: black;
   background-color: rgb(255, 200, 0);
   border-color: rgb(255, 200, 0);
 }
+
+.cta {
+  display: flex;
+  justify-content: center;
+  background: url("./images/cta-paper-background.webp");
+  background-size: cover;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  aspect-ratio: 3.29;
+  padding: 0.6rem 0 0.7rem 0;
+  text-decoration: none;
+  
+  & .cta-title {
+    font-family: "banshee-std", sans-serif;
+    font-size: 3rem;
+    position: relative;
+    color: #622311;
+    width: -moz-fit-content;
+    width: fit-content;
+  }
+  
+  & .cta-title::after{
+    content: "";
+    display: block;
+    position: absolute;
+    bottom: 0.3rem;
+    left: 0; /* Start at the left edge of .cta */
+    right: 0; /* End at the right edge of .cta */
+    height: 3px;
+    background: #622311;
+    transition: transform 0.2s ease-in-out;
+    transform: scale(0);
+  }
+}
+
+.cta:hover {
+  filter: brightness(105%);
+  transform:scale(1.05);
+
+
+  & .cta-title::after {
+    transform: scale(1);
+  }
+} 
 
 #crosshair {
   z-index:1;
@@ -47,6 +150,52 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+
+/*------------------------------------------------*/
+/*---------        LOADING SCREEN        ---------*/
+/*------------------------------------------------*/
+
+.loading-screen {
+  visibility: hidden;
+  z-index: 10;
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  width: 100vw;
+  height: 100vh;
+  /* background-color: LightSalmon; */
+  background-image: url('images/LeonardDeVinci_Amphi.jpg');
+  background-repeat: no-repeat;
+  background-position: 50% 0;
+  background-size: cover;
+
+  & .loading-info {
+    font-size: 2.5rem;
+    margin-right: 3rem;
+  }
+
+  & .spinner-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: flex-start;
+    width: 100%;
+    margin-top: 5rem;
+    margin-right: 5rem;
+  }
+}
+
+.loading-screen.active {
+  visibility: visible;
+}
+
+.loading-font {
+  white-space: nowrap;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, .5);
+  border-radius: 5px;
 }
 
 /*------------------------------------------------*/
@@ -106,7 +255,6 @@ body {
 .modal-container.active {
   visibility:visible;
 }
-
 
 #settings-modal, #disconnected-modal, #inactivity-modal {
   background-color: rgb(14,21,31);
@@ -220,3 +368,87 @@ body {
         height: auto;
     }
 } 
+
+.no-text-select, .cta-title, h1 {
+  /* For better browser compatibility */
+  -webkit-user-select: none;  /* Chrome, Safari, Opera */
+  -moz-user-select: none;     /* Firefox */
+  -ms-user-select: none;      /* Internet Explorer/Edge */
+  user-select: none;
+}
+
+
+/* CSS loader from https://loading.io/css/ */
+
+.lds-grid,
+.lds-grid div {
+  box-sizing: border-box;
+}
+.lds-grid {
+  display: inline-block;
+  position: relative;
+  width: 16rem;
+  height: 16rem;
+}
+.lds-grid div {
+  position: absolute;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: lds-grid 1.2s linear infinite;
+}
+.lds-grid div:nth-child(1) {
+  top: 1.6rem;
+  left: 1.6rem;
+  animation-delay: 0s;
+}
+.lds-grid div:nth-child(2) {
+  top: 1.6rem;
+  left: 6.4rem;
+  animation-delay: -0.4s;
+}
+.lds-grid div:nth-child(3) {
+  top: 1.6rem;
+  left: 11.2rem;
+  animation-delay: -0.8s;
+}
+.lds-grid div:nth-child(4) {
+  top: 6.4rem;
+  left: 1.6rem;
+  animation-delay: -0.4s;
+}
+.lds-grid div:nth-child(5) {
+  top: 6.4rem;
+  left: 6.4rem;
+  animation-delay: -0.8s;
+}
+.lds-grid div:nth-child(6) {
+  top: 6.4rem;
+  left: 11.2rem;
+  animation-delay: -1.2s;
+}
+.lds-grid div:nth-child(7) {
+  top: 11.2rem;
+  left: 1.6rem;
+  animation-delay: -0.8s;
+}
+.lds-grid div:nth-child(8) {
+  top: 11.2rem;
+  left: 6.4rem;
+  animation-delay: -1.2s;
+}
+.lds-grid div:nth-child(9) {
+  top: 11.2rem;
+  left: 11.2rem;
+  animation-delay: -1.6s;
+}
+@keyframes lds-grid {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+

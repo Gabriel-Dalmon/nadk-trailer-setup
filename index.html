@@ -1,101 +1,177 @@
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <meta content="width=device-width,initial-scale=1.0" name="viewport" />
     <title>3dverse Sample: First Person Controller</title>
-    <link
-      rel="shortcut icon"
-      href="https://cdn.3dverse.com/assets/3dverse-wordmark.svg"
-    />
+    <link rel="shortcut icon" href="https://cdn.3dverse.com/assets/3dverse-wordmark.svg" />
     <link rel="stylesheet" href="./style.css" />
-    <link rel="stylesheet" href="https://use.typekit.net/ath5stj.css">
-  </head>
+    <link rel="stylesheet" href="https://use.typekit.net/ath5stj.css" />
+</head>
 
-  <body>
+<body>
     <div class="canvas-container">
-      <!-- CANVAS -->
-      <canvas
-        id="display-canvas"
-        tabindex="1"
-        oncontextmenu="event.preventDefault()"
-      ></canvas>
+        <!-- CANVAS -->
+        <canvas id="display-canvas" tabindex="1" oncontextmenu="event.preventDefault()"></canvas>
     </div>
 
+    <!-- MAIN MENU -->
+    <div id="main-menu" class="active">
+        <h1>Amphitheater of Leonardo da Vinci</h1>
+        <div class="cta-container">
+            <button id="start-button" class="cta">
+                <span class="cta-title">Start</span>
+            </button>
+            <a class="cta" href="https://github.com/Gabriel-Dalmon/nadk-trailer-setup" rel="nofollow noopener"
+                target="_blank"><span class="cta-title">Source Code</span></a>
+            <a class="cta" href="https://github.com/Gabriel-Dalmon/nadk-trailer-setup" rel="nofollow noopener"
+                target="_blank"><span class="cta-title">Credits</span></a>
+        </div>
+    </div>
+
+    <!-- LOADING SCREEN -->
+    <div id="loading-screen" class="loading-screen active">
+        <div class="spinner-container">
+            <p id="loading-info" class="loading-info">Loading Infos - To fill</p>
+            <div class="lds-grid"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        </div>
+    </div>
+
+    <!-- SETTINGS POPUP -->
     <div class="modal-container">
-      <!-- SETTINGS POPUP -->
-      <div id="settings-modal">
-        <button id="close-settings" type="button">X</button>
-        <h2>Settings</h2>
-        <ul id="controls">
-          <li>
-            <label for="sensitivity-slider">Mouse Sensitivity :</label>
-            <input type="range" min="0" max="100" value="30" id="sensitivity-slider">
-          </li>
-          <li><p>Look Around</p><span class="action-keys" data-action="LOOK_AROUND">NONE</span></li>
-          <li><p>Move Forward :</p><span class="action-keys" data-action="MOVE_FORWARD">NONE</span></li>        
-          <li><p>Move Backward :</p><span class="action-keys" data-action="MOVE_BACKWARD">NONE</span></li>
-          <li><p>Move Right :</p><span class="action-keys" data-action="MOVE_RIGHT">NONE</span></li>
-          <li><p>Move Left :</p><span class="action-keys" data-action="MOVE_LEFT">NONE</span></li>
-          <li><p>Jump :</p><span class="action-keys" data-action="JUMP">NONE</span></li>
-          <li><p>Sprint :</p><span class="action-keys" data-action="SPRINT">NONE</span></li>
-          <li><p>Dance :</p><span class="action-keys" data-action="DANCE">NONE</span></li>
-        </ul>
-      </div>
+        <div id="settings-modal">
+            <button id="close-settings" type="button">X</button>
+            <h2>Settings</h2>
+            <ul id="controls">
+                <li>
+                    <label for="sensitivity-slider">Mouse Sensitivity :</label>
+                    <input type="range" min="0" max="100" value="30" id="sensitivity-slider" />
+                </li>
+                <li>
+                    <p>Look Around</p>
+                    <span class="action-keys" data-action="LOOK_AROUND">NONE</span>
+                </li>
+                <li>
+                    <p>Move Forward :</p>
+                    <span class="action-keys" data-action="MOVE_FORWARD">NONE</span>
+                </li>
+                <li>
+                    <p>Move Backward :</p>
+                    <span class="action-keys" data-action="MOVE_BACKWARD">NONE</span>
+                </li>
+                <li>
+                    <p>Move Right :</p>
+                    <span class="action-keys" data-action="MOVE_RIGHT">NONE</span>
+                </li>
+                <li>
+                    <p>Move Left :</p>
+                    <span class="action-keys" data-action="MOVE_LEFT">NONE</span>
+                </li>
+                <li>
+                    <p>Jump :</p>
+                    <span class="action-keys" data-action="JUMP">NONE</span>
+                </li>
+                <li>
+                    <p>Sprint :</p>
+                    <span class="action-keys" data-action="SPRINT">NONE</span>
+                </li>
+                <li>
+                    <p>Dance :</p>
+                    <span class="action-keys" data-action="DANCE">NONE</span>
+                </li>
+            </ul>
+        </div>
     </div>
 
+    <!-- LOCK POPUP -->
     <div id="lock-modal-container" class="modal-container">
-      <!-- LOCK POPUP -->
-      <div id="lock-modal">
-        <div class="image-container">
-          <img src="images/lock.webp" alt="Chest Lock UI Image" />
-          <ul class="lock-input-list">
-            <li class="input-container">
-              <input type="number" id="lock-input-1" placeholder="X" value="3" min="0" max="9">
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="increment-arrow" alt="Control Arrows for Lock Inputs"></div>
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="decrement-arrow" alt="Control Arrows for Lock Inputs"></div>
-            </li>
-            <li class="input-container">
-              <input type="number" id="lock-input-2" placeholder="X" value="9" min="0" max="9">
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="increment-arrow" alt="Control Arrows for Lock Inputs"></div>
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="decrement-arrow" alt="Control Arrows for Lock Inputs"></div>
-            </li>
-            <li class="input-container">
-              <input type="number" id="lock-input-3" placeholder="X" value="8" min="0" max="9">
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="increment-arrow" alt="Control Arrows for Lock Inputs"></div>
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="decrement-arrow" alt="Control Arrows for Lock Inputs"></div>
-            </li>
-            <li class="input-container">
-              <input type="number" id="lock-input-4" placeholder="X" value="5" min="0" max="9">
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="increment-arrow" alt="Control Arrows for Lock Inputs"></div>
-              <div class="image-container"><img src="images/lock_input_arrows.webp" class="decrement-arrow" alt="Control Arrows for Lock Inputs"></div>
-            </li>
-          </ul>
+        <div id="lock-modal">
+            <div class="image-container">
+                <img src="images/lock.webp" alt="Chest Lock UI Image" />
+                <ul class="lock-input-list">
+                    <li class="input-container">
+                        <input type="number" id="lock-input-1" class="lock-input" placeholder="X" value="3" min="0"
+                            max="9" />
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="increment-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="decrement-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                    </li>
+                    <li class="input-container">
+                        <input type="number" id="lock-input-2" class="lock-input" placeholder="X" value="9" min="0"
+                            max="9" />
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="increment-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="decrement-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                    </li>
+                    <li class="input-container">
+                        <input type="number" id="lock-input-3" class="lock-input" placeholder="X" value="8" min="0"
+                            max="9" />
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="increment-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="decrement-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                    </li>
+                    <li class="input-container">
+                        <input type="number" id="lock-input-4" class="lock-input" placeholder="X" value="5" min="0"
+                            max="9" />
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="increment-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                        <div class="image-container">
+                            <img src="images/lock_input_arrows.webp" class="decrement-arrow"
+                                alt="Control Arrows for Lock Inputs" />
+                        </div>
+                    </li>
+                </ul>
+            </div>
         </div>
-      </div>
     </div>
 
+    <!-- INACTIVITY POPUP -->
     <div class="modal-container">
-      <!-- INACTIVITY POPUP -->
-      <div id="inactivity-modal">
-        <h2>Inactivity Alert</h2>
-        <p>You are inactive since five minutes, you will soon be disconnected.</p>
-        <div class="cta-container">
-          <button id="resume" class="cta" type="button">Resume</button>
+        <div id="inactivity-modal">
+            <h2>Inactivity Alert</h2>
+            <p>
+                You are inactive since five minutes, you will soon be
+                disconnected.
+            </p>
+            <div class="cta-container">
+                <button id="resume" class="cta" type="button">
+                    Resume
+                </button>
+            </div>
         </div>
-      </div>
     </div>
 
+    <!-- DISCONNECTION POPUP -->
     <div class="modal-container">
-      <!-- DISCONNECTION POPUP -->
-      <div id="disconnected-modal">
-        <h2>Disconnected</h2>
-        <p>Connection to the server has been lost.</p>
-        <div class="cta-container">
-          <button id="reload-session" class="cta" type="button">Reload</button>
+        <div id="disconnected-modal">
+            <h2>Disconnected</h2>
+            <p>Connection to the server has been lost.</p>
+            <div class="cta-container">
+                <button id="reload-session" class="cta" type="button">
+                    Reload
+                </button>
+            </div>
         </div>
-      </div>
     </div>
 
+    <!-- CROSSHAIR -->
     <div id="crosshair"></div>
 
     <!-- SDK 3DVERSE -->
@@ -103,5 +179,6 @@
 
     <!-- APP ENTRYPOINT -->
     <script src="./scripts/main.js" type="module"></script>
-  </body>
+</body>
+
 </html>
